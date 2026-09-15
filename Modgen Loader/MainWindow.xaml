@@ -1,0 +1,626 @@
+﻿<Window x:Class="Modgen_Loader.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Modgen_Loader"
+        mc:Ignorable="d"
+        Title="Infinity Modgen Loader"
+        Height="650"
+        Width="1100"
+        MinHeight="550"
+        MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        Background="#080B12">
+
+    <Window.Resources>
+
+        <SolidColorBrush x:Key="BackgroundBrush"
+                         Color="#080B12"/>
+
+        <SolidColorBrush x:Key="PanelBrush"
+                         Color="#0D1422"/>
+
+        <SolidColorBrush x:Key="PanelLightBrush"
+                         Color="#111C2E"/>
+
+        <SolidColorBrush x:Key="BlueBrush"
+                         Color="#1689E8"/>
+
+        <SolidColorBrush x:Key="RedBrush"
+                         Color="#B52A3A"/>
+
+        <SolidColorBrush x:Key="TextBrush"
+                         Color="#F2F5F8"/>
+
+        <SolidColorBrush x:Key="SubTextBrush"
+                         Color="#8995A5"/>
+
+        <SolidColorBrush x:Key="BorderBrush"
+                         Color="#1C2A3D"/>
+
+        <Style x:Key="NavigationButton"
+               TargetType="Button">
+
+            <Setter Property="Background"
+                    Value="Transparent"/>
+
+            <Setter Property="Foreground"
+                    Value="{StaticResource SubTextBrush}"/>
+
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+
+            <Setter Property="FontSize"
+                    Value="15"/>
+
+            <Setter Property="FontWeight"
+                    Value="SemiBold"/>
+
+            <Setter Property="Padding"
+                    Value="5,10"/>
+
+            <Setter Property="Margin"
+                    Value="0,0,30,0"/>
+
+        </Style>
+
+        <Style x:Key="ActionButton"
+               TargetType="Button">
+
+            <Setter Property="Background"
+                    Value="{StaticResource PanelLightBrush}"/>
+
+            <Setter Property="Foreground"
+                    Value="{StaticResource TextBrush}"/>
+
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource BorderBrush}"/>
+
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+
+            <Setter Property="Padding"
+                    Value="15,8"/>
+
+            <Setter Property="FontSize"
+                    Value="13"/>
+
+        </Style>
+
+    </Window.Resources>
+
+    <Grid Background="{StaticResource BackgroundBrush}">
+
+        <Grid.RowDefinitions>
+
+            <RowDefinition Height="Auto"/>
+
+            <RowDefinition Height="*"/>
+
+            <RowDefinition Height="Auto"/>
+
+        </Grid.RowDefinitions>
+
+        <!-- TOP BAR -->
+
+        <Border Grid.Row="0"
+                Background="#0A101B"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="28,18">
+
+            <Grid>
+
+                <Grid.ColumnDefinitions>
+
+                    <ColumnDefinition Width="*"/>
+
+                    <ColumnDefinition Width="Auto"/>
+
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+
+                    <Image Source="/Assets/logo.png"
+                           Width="50"
+                           Height="50"
+                           Stretch="Uniform"
+                           Margin="0,0,14,0"/>
+
+                    <StackPanel>
+
+                        <TextBlock Text="INFINITY"
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontSize="20"
+                                   FontWeight="Bold"/>
+
+                        <TextBlock Text="MODGEN LOADER"
+                                   Foreground="{StaticResource SubTextBrush}"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"/>
+
+                    </StackPanel>
+
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+
+                    <Button x:Name="ModsButton"
+                            Content="MODS"
+                            Style="{StaticResource NavigationButton}"
+                            Foreground="{StaticResource BlueBrush}"
+                            Click="ModsButton_Click"/>
+
+                    <Button x:Name="CodesButton"
+                            Content="CODES"
+                            Style="{StaticResource NavigationButton}"
+                            Click="CodesButton_Click"/>
+
+                    <Button x:Name="SettingsButton"
+                            Content="SETTINGS"
+                            Style="{StaticResource NavigationButton}"
+                            Margin="0"
+                            Click="SettingsButton_Click"/>
+
+                </StackPanel>
+
+            </Grid>
+
+        </Border>
+
+        <!-- MAIN CONTENT -->
+
+        <Grid Grid.Row="1"
+              Margin="30">
+
+            <!-- MODS -->
+
+            <Grid x:Name="ModsPage">
+
+                <Grid.RowDefinitions>
+
+                    <RowDefinition Height="Auto"/>
+
+                    <RowDefinition Height="*"/>
+
+                </Grid.RowDefinitions>
+
+                <!-- MODS HEADER -->
+
+                <Grid Grid.Row="0"
+                      Margin="0,0,0,20">
+
+                    <Grid.ColumnDefinitions>
+
+                        <ColumnDefinition Width="*"/>
+
+                        <ColumnDefinition Width="Auto"/>
+
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+
+                        <TextBlock Text="Mods"
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontSize="28"
+                                   FontWeight="Bold"/>
+
+                        <TextBlock Text="Manage your installed Infinity Engine modifications."
+                                   Foreground="{StaticResource SubTextBrush}"
+                                   FontSize="13"
+                                   Margin="0,5,0,0"/>
+
+                    </StackPanel>
+
+                    <Button Grid.Column="1"
+                            Content="+ Install Mod"
+                            Style="{StaticResource ActionButton}"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Click="InstallMod_Click"/>
+
+                </Grid>
+
+                <Border Grid.Row="1"
+                        Background="{StaticResource PanelBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4">
+
+                    <Grid>
+
+                        <TextBlock x:Name="NoModsText"
+                                   Text="No mods installed."
+                                   Foreground="{StaticResource SubTextBrush}"
+                                   FontSize="14"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+
+                            <ItemsControl x:Name="ModsList">
+
+                                <ItemsControl.ItemTemplate>
+
+                                    <DataTemplate>
+
+                                        <Border Background="{StaticResource PanelLightBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Margin="6">
+
+                                            <Grid Margin="10">
+
+                                                <Grid.ColumnDefinitions>
+
+                                                    <ColumnDefinition Width="*"/>
+
+                                                    <ColumnDefinition Width="Auto"/>
+
+                                                    <ColumnDefinition Width="Auto"/>
+
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Grid.Column="0">
+
+                                                    <TextBlock Text="{Binding Name}"
+                                                               Foreground="{StaticResource TextBrush}"
+                                                               FontSize="15"
+                                                               FontWeight="Bold"/>
+
+                                                    <TextBlock Text="{Binding Author}"
+                                                               Foreground="{StaticResource SubTextBrush}"
+                                                               FontSize="11"
+                                                               Margin="0,2,0,0"/>
+
+                                                    <TextBlock Text="{Binding Description}"
+                                                               Foreground="{StaticResource SubTextBrush}"
+                                                               FontSize="12"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,5,0,0"/>
+
+                                                    <TextBlock Text="{Binding Version}"
+                                                               Foreground="{StaticResource SubTextBrush}"
+                                                               FontSize="10"
+                                                               Margin="0,5,0,0"/>
+
+                                                </StackPanel>
+
+                                                <Button Grid.Column="1"
+                                                        Content="Inspect PAK"
+                                                        Style="{StaticResource ActionButton}"
+                                                        VerticalAlignment="Center"
+                                                        Margin="10,0,10,0"
+                                                        Click="InspectPak_Click"/>
+
+                                                <CheckBox Grid.Column="2"
+                                                          Content="Enabled"
+                                                          Foreground="{StaticResource TextBrush}"
+                                                          VerticalAlignment="Center"
+                                                          Margin="15,0,5,0"
+                                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}"/>
+
+                                            </Grid>
+
+                                        </Border>
+
+                                    </DataTemplate>
+
+                                </ItemsControl.ItemTemplate>
+
+                            </ItemsControl>
+
+                        </ScrollViewer>
+
+                    </Grid>
+
+                </Border>
+
+            </Grid>
+
+            <!-- CODES -->
+
+            <Grid x:Name="CodesPage"
+                  Visibility="Collapsed">
+
+                <StackPanel>
+
+                    <TextBlock Text="Codes"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="28"
+                               FontWeight="Bold"/>
+
+                    <TextBlock Text="Manage game codes and gameplay modifications."
+                               Foreground="{StaticResource SubTextBrush}"
+                               FontSize="13"
+                               Margin="0,5,0,20"/>
+
+                    <Border Background="{StaticResource PanelBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            Padding="25">
+
+                        <TextBlock Text="No codes have been added yet."
+                                   Foreground="{StaticResource SubTextBrush}"
+                                   FontSize="14"/>
+
+                    </Border>
+
+                </StackPanel>
+
+            </Grid>
+
+            <!-- SETTINGS -->
+
+            <Grid x:Name="SettingsPage"
+                  Visibility="Collapsed">
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+
+                    <StackPanel>
+
+                        <TextBlock Text="Settings"
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontSize="28"
+                                   FontWeight="Bold"/>
+
+                        <TextBlock Text="Configure Infinity Modgen Loader."
+                                   Foreground="{StaticResource SubTextBrush}"
+                                   FontSize="13"
+                                   Margin="0,5,0,20"/>
+
+                        <!-- GAME INFORMATION -->
+
+                        <Border Background="{StaticResource PanelBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="25"
+                                Margin="0,0,0,15">
+
+                            <StackPanel>
+
+                                <TextBlock Text="Game Information"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontSize="17"
+                                           FontWeight="Bold"
+                                           Margin="0,0,0,18"/>
+
+                                <TextBlock Text="Selected Game"
+                                           Foreground="{StaticResource SubTextBrush}"
+                                           FontSize="11"/>
+
+                                <TextBlock x:Name="SettingsGameNameText"
+                                           Text="No game selected"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Margin="0,3,0,15"/>
+
+                                <TextBlock Text="Executable"
+                                           Foreground="{StaticResource SubTextBrush}"
+                                           FontSize="11"/>
+
+                                <TextBlock x:Name="SettingsExePathText"
+                                           Text="—"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Margin="0,3,0,15"/>
+
+                                <TextBlock Text="Game Directory"
+                                           Foreground="{StaticResource SubTextBrush}"
+                                           FontSize="11"/>
+
+                                <TextBlock x:Name="SettingsGameDirectoryText"
+                                           Text="—"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Margin="0,3,0,15"/>
+
+                                <TextBlock Text="Engine Version"
+                                           Foreground="{StaticResource SubTextBrush}"
+                                           FontSize="11"/>
+
+                                <TextBlock x:Name="SettingsEngineVersionText"
+                                           Text="—"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontSize="12"
+                                           Margin="0,3,0,15"/>
+
+                                <TextBlock Text="Engine Content"
+                                           Foreground="{StaticResource SubTextBrush}"
+                                           FontSize="11"/>
+
+                                <TextBlock x:Name="SettingsContentDirectoryText"
+                                           Text="—"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Margin="0,3,0,15"/>
+
+                                <TextBlock Text="PAK Directory"
+                                           Foreground="{StaticResource SubTextBrush}"
+                                           FontSize="11"/>
+
+                                <TextBlock x:Name="SettingsPaksDirectoryText"
+                                           Text="—"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"/>
+
+                            </StackPanel>
+
+                        </Border>
+
+                        <!-- FOLDERS -->
+
+                        <Border Background="{StaticResource PanelBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="25"
+                                Margin="0,0,0,15">
+
+                            <StackPanel>
+
+                                <TextBlock Text="Folders"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontSize="17"
+                                           FontWeight="Bold"
+                                           Margin="0,0,0,18"/>
+
+                                <StackPanel Orientation="Horizontal">
+
+                                    <Button Content="Open Game Folder"
+                                            Width="145"
+                                            Height="34"
+                                            Style="{StaticResource ActionButton}"
+                                            Margin="0,0,10,0"
+                                            Click="OpenGameFolder_Click"/>
+
+                                    <Button Content="Open Mods Folder"
+                                            Width="145"
+                                            Height="34"
+                                            Style="{StaticResource ActionButton}"
+                                            Click="OpenModsFolder_Click"/>
+
+                                </StackPanel>
+
+                            </StackPanel>
+
+                        </Border>
+
+                        <!-- RESET -->
+
+                        <Border Background="{StaticResource PanelBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="25">
+
+                            <StackPanel>
+
+                                <TextBlock Text="Game Configuration"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontSize="17"
+                                           FontWeight="Bold"/>
+
+                                <TextBlock Text="Remove the selected game from Infinity Modgen Loader. This does not uninstall or delete the game."
+                                           Foreground="{StaticResource SubTextBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Margin="0,5,0,15"/>
+
+                                <Button Content="Reset Game Configuration"
+                                        Width="190"
+                                        Height="34"
+                                        HorizontalAlignment="Left"
+                                        Style="{StaticResource ActionButton}"
+                                        Click="ResetGameConfiguration_Click"/>
+
+                            </StackPanel>
+
+                        </Border>
+
+                    </StackPanel>
+
+                </ScrollViewer>
+
+            </Grid>
+
+        </Grid>
+
+        <!-- BOTTOM BAR -->
+
+        <Border Grid.Row="2"
+                Background="#0A101B"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="20,12">
+
+            <Grid>
+
+                <Grid.ColumnDefinitions>
+
+                    <ColumnDefinition Width="*"/>
+
+                    <ColumnDefinition Width="Auto"/>
+
+                    <ColumnDefinition Width="Auto"/>
+
+                    <ColumnDefinition Width="Auto"/>
+
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Content="Save"
+                        Width="90"
+                        Height="34"
+                        HorizontalAlignment="Left"
+                        Style="{StaticResource ActionButton}"
+                        Click="Save_Click"/>
+
+                <Button Grid.Column="1"
+                        Content="Launch Game"
+                        Width="110"
+                        Height="34"
+                        Margin="8,0,8,0"
+                        Style="{StaticResource ActionButton}"
+                        Click="LaunchGame_Click"/>
+
+                <ComboBox Grid.Column="2"
+                          x:Name="GameSelector"
+                          Width="210"
+                          Height="34"
+                          VerticalContentAlignment="Center"
+                          Foreground="Black"
+                          Background="White"
+                          BorderBrush="{StaticResource BorderBrush}"
+                          SelectionChanged="GameSelector_SelectionChanged">
+
+                    <ComboBox.ItemTemplate>
+
+                        <DataTemplate>
+
+                            <StackPanel Orientation="Horizontal">
+
+                                <Image Width="24"
+                                       Height="24"
+                                       Margin="0,0,8,0"
+                                       Stretch="Uniform"
+                                       Source="{Binding IconPath}"/>
+
+                                <TextBlock Text="{Binding Name}"
+                                           VerticalAlignment="Center"/>
+
+                            </StackPanel>
+
+                        </DataTemplate>
+
+                    </ComboBox.ItemTemplate>
+
+                </ComboBox>
+
+                <Button Grid.Column="3"
+                        Content="+ Add Game"
+                        Width="100"
+                        Height="34"
+                        Margin="8,0,0,0"
+                        Style="{StaticResource ActionButton}"
+                        Click="AddGame_Click"/>
+
+            </Grid>
+
+        </Border>
+
+    </Grid>
+
+</Window>
