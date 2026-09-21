@@ -1,0 +1,54 @@
+MIT License
+
+Copyright (c) 2026 TheBrightBlueSun / TBBS Studios
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+THIRD-PARTY SOFTWARE & CREDITS
+
+Infinity Modgen Manager uses, includes, modifies, or references the following
+third-party projects. These projects remain subject to their respective
+licences and terms. The MIT License above applies only to original
+Infinity Modgen Manager software authored by TheBrightBlueSun / TBBS Studios.
+
+RE-UE4SS
+MIT License
+https://github.com/UE4SS-RE/RE-UE4SS
+
+unreal-shimloader
+Used and modified for Unreal Engine runtime filesystem
+virtualization and mod loading.
+https://github.com/thunderstore-io/unreal-shimloader
+
+SharpCompress
+MIT License
+Used for archive extraction and handling.
+https://github.com/adamhathcock/sharpcompress
+
+HedgeModManager
+MIT License
+Used as inspiration and reference for mod-management
+and GameBanana integration.
+https://github.com/thesupersonic16/HedgeModManager
+
+CrossPatch
+GPL-3.0 License
+Used as inspiration and reference for PAK and UE4SS
+mod-management functionality.
+https://github.com/nockcs/CrossPatch
