@@ -1,19 +1,18 @@
-﻿using Microsoft.Win32;
-using Modgen_Loader.Models;
-using Modgen_Loader.Services;
-using System;
+﻿using InfinityModgenManager.Models;
+using InfinityModgenManager.Services;
+using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.Linq;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace Modgen_Loader
+namespace InfinityModgenManager
 {
     public partial class MainWindow : Window
     {
@@ -29,6 +28,9 @@ namespace Modgen_Loader
         private readonly PakInspector pakInspector =
             new PakInspector();
 
+        private readonly RuntimeDeploymentService runtimeDeploymentService =
+            new RuntimeDeploymentService();
+
         private Game? selectedGame;
 
         private string GamesConfigDirectory
@@ -38,7 +40,7 @@ namespace Modgen_Loader
                 return Path.Combine(
                     Environment.GetFolderPath(
                         Environment.SpecialFolder.ApplicationData),
-                    "Infinity Modgen Loader");
+                    "Infinity Modgen Manager");
             }
         }
 
@@ -56,22 +58,901 @@ namespace Modgen_Loader
         {
             InitializeComponent();
 
+            RegisterGameBananaProtocol();
+
             GameSelector.ItemsSource = games;
             ModsList.ItemsSource = mods;
 
             LoadGames();
+
+            if (IsGameBananaStartup())
+            {
+                Hide();
+            }
+
+            _ = HandleStartupArgumentsAsync();
+        }
+
+        private bool IsGameBananaStartup()
+        {
+            string[] arguments =
+                Environment.GetCommandLineArgs();
+
+            if (arguments.Length < 2)
+                return false;
+
+            string protocolArgument =
+                arguments[1];
+
+            return protocolArgument.StartsWith(
+                "infinitymodgen:",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void RegisterGameBananaProtocol()
+        {
+            try
+            {
+                using RegistryKey? protocolKey =
+                    Registry.CurrentUser.CreateSubKey(
+                        @"Software\Classes\infinitymodgen");
+
+                if (protocolKey == null)
+                    return;
+
+                protocolKey.SetValue(
+                    "",
+                    "URL:Infinity Modgen Protocol");
+
+                protocolKey.SetValue(
+                    "URL Protocol",
+                    "");
+
+                using RegistryKey? commandKey =
+                    protocolKey.CreateSubKey(
+                        @"shell\open\command");
+
+                if (commandKey == null)
+                    return;
+
+                string applicationPath =
+                    Environment.ProcessPath ?? "";
+
+                if (string.IsNullOrWhiteSpace(
+                    applicationPath))
+                {
+                    return;
+                }
+
+                commandKey.SetValue(
+                    "",
+                    "\"" +
+                    applicationPath +
+                    "\" \"%1\"");
+            }
+            catch
+            {
+                // Protocol registration failure should not
+                // prevent the Manager from starting.
+            }
+        }
+
+        private async Task HandleStartupArgumentsAsync()
+        {
+            try
+            {
+                string[] arguments =
+                    Environment.GetCommandLineArgs();
+
+                if (arguments.Length < 2)
+                    return;
+
+                string protocolArgument =
+                    arguments[1];
+
+                if (string.IsNullOrWhiteSpace(
+                    protocolArgument))
+                {
+                    return;
+                }
+
+                if (!protocolArgument.StartsWith(
+                    "infinitymodgen:",
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                await InstallGameBananaProtocolModAsync(
+                    protocolArgument);
+
+                Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "The GameBanana mod could not be installed.\n\n" +
+                    ex.Message,
+                    "Infinity Modgen Manager",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
+                if (IsGameBananaStartup())
+                {
+                    Application.Current.Shutdown();
+                }
+            }
+        }
+
+        private async Task InstallGameBananaProtocolModAsync(
+            string protocolArgument)
+        {
+            string payload =
+                protocolArgument.Substring(
+                    "infinitymodgen:".Length);
+
+            if (string.IsNullOrWhiteSpace(
+                payload))
+            {
+                throw new InvalidOperationException(
+                    "The GameBanana 1-Click URL did not contain a download URL.");
+            }
+
+            string[] parts =
+                payload.Split(
+                    ',',
+                    StringSplitOptions.None);
+
+            string downloadUrl =
+                parts[0].Trim();
+
+            if (!Uri.TryCreate(
+                downloadUrl,
+                UriKind.Absolute,
+                out Uri? downloadUri))
+            {
+                throw new InvalidOperationException(
+                    "The GameBanana download URL is invalid.");
+            }
+
+            if (!string.Equals(
+                downloadUri.Scheme,
+                "https",
+                StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(
+                downloadUri.Scheme,
+                "http",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "The GameBanana download URL must use HTTP or HTTPS.");
+            }
+
+            string? gameBananaItemType =
+                null;
+
+            string? gameBananaModId =
+                null;
+
+            foreach (string rawPart in parts.Skip(1))
+            {
+                string part =
+                    rawPart.Trim();
+
+                if (string.IsNullOrWhiteSpace(
+                    part))
+                {
+                    continue;
+                }
+
+                int separatorIndex =
+                    part.IndexOf(':');
+
+                if (separatorIndex > 0)
+                {
+                    string key =
+                        part.Substring(
+                            0,
+                            separatorIndex)
+                        .Trim();
+
+                    string value =
+                        part.Substring(
+                            separatorIndex + 1)
+                        .Trim();
+
+                    try
+                    {
+                        value =
+                            Uri.UnescapeDataString(
+                                value);
+                    }
+                    catch
+                    {
+                        // Keep the original value if decoding fails.
+                    }
+
+                    if (string.Equals(
+                        key,
+                        "gb_itemtype",
+                        StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(
+                        key,
+                        "itemtype",
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        gameBananaItemType =
+                            value;
+
+                        continue;
+                    }
+
+                    if (string.Equals(
+                        key,
+                        "gb_itemid",
+                        StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(
+                        key,
+                        "itemid",
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        gameBananaModId =
+                            value;
+
+                        continue;
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                gameBananaItemType) &&
+                parts.Length >= 2)
+            {
+                string positionalType =
+                    parts[1].Trim();
+
+                if (!string.IsNullOrWhiteSpace(
+                    positionalType) &&
+                    !positionalType.Contains(
+                        ":",
+                        StringComparison.Ordinal))
+                {
+                    gameBananaItemType =
+                        positionalType;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                gameBananaModId) &&
+                parts.Length >= 3)
+            {
+                string positionalId =
+                    parts[2].Trim();
+
+                if (!string.IsNullOrWhiteSpace(
+                    positionalId) &&
+                    !positionalId.Contains(
+                        ":",
+                        StringComparison.Ordinal))
+                {
+                    gameBananaModId =
+                        positionalId;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                gameBananaItemType))
+            {
+                gameBananaItemType =
+                    "Mod";
+            }
+
+            if (!string.Equals(
+                gameBananaItemType,
+                "Mod",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "The GameBanana 1-Click URL does not contain a supported Mod item type.");
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                gameBananaModId))
+            {
+                throw new InvalidOperationException(
+                    "The GameBanana 1-Click URL did not contain a GameBanana Mod ID.");
+            }
+
+            string? gameBananaGameName =
+                await GetGameBananaGameNameAsync(
+                    gameBananaItemType,
+                    gameBananaModId);
+
+            if (string.IsNullOrWhiteSpace(
+                gameBananaGameName))
+            {
+                throw new InvalidOperationException(
+                    "GameBanana did not return a game name for Mod " +
+                    gameBananaModId +
+                    ".");
+            }
+
+            Game? matchingGame =
+                FindMatchingGame(
+                    gameBananaGameName);
+
+            if (matchingGame == null)
+            {
+                matchingGame =
+                    games.FirstOrDefault(
+                        game =>
+                            string.Equals(
+                                game.Preset,
+                                gameBananaGameName,
+                                StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (matchingGame == null)
+            {
+                string configuredGames =
+                    games.Count == 0
+                        ? "No games are currently configured."
+                        : string.Join(
+                            "\n",
+                            games.Select(
+                                game =>
+                                    "• " +
+                                    game.Name));
+
+                throw new InvalidOperationException(
+                    "GameBanana reports that this mod belongs to:\n\n" +
+                    gameBananaGameName +
+                    "\n\n" +
+                    "Infinity Modgen Manager could not find that game " +
+                    "in your configured games.\n\n" +
+                    "Configured games:\n" +
+                    configuredGames +
+                    "\n\n" +
+                    "Add the game to Infinity Modgen Manager first.");
+            }
+
+            selectedGame =
+                matchingGame;
+
+            GameSelector.SelectedItem =
+                matchingGame;
+
+            ScanMods(
+                matchingGame);
+
+            UpdateSettingsPage();
+
+            GameBananaModMetadata metadata =
+                await GetGameBananaModMetadataAsync(
+                    gameBananaItemType,
+                    gameBananaModId);
+
+            string modName =
+                string.IsNullOrWhiteSpace(
+                    metadata.Name)
+                    ? "GameBanana Mod " +
+                      gameBananaModId
+                    : metadata.Name;
+
+            string author =
+                string.IsNullOrWhiteSpace(
+                    metadata.Author)
+                    ? "Unknown"
+                    : metadata.Author;
+
+            string description =
+                string.IsNullOrWhiteSpace(
+                    metadata.Description)
+                    ? "No description available."
+                    : metadata.Description;
+
+            GameBananaInstallWindow installWindow =
+                new GameBananaInstallWindow(
+                    matchingGame,
+                    downloadUri.ToString(),
+                    gameBananaModId,
+                    modName,
+                    author,
+                    description,
+                    "Unknown",
+                    null);
+
+            bool? installationResult =
+                installWindow.ShowDialog();
+
+            if (installationResult != true)
+            {
+                throw new InvalidOperationException(
+                    "The GameBanana installation was cancelled.");
+            }
+
+            SaveGames();
+
+            RefreshMods();
+
+            GameSelector.SelectedItem =
+                matchingGame;
+        }
+
+        private sealed class GameBananaModMetadata
+        {
+            public string? Name { get; set; }
+
+            public string? Author { get; set; }
+
+            public string? Description { get; set; }
+        }
+
+        private async Task<GameBananaModMetadata>
+            GetGameBananaModMetadataAsync(
+                string itemType,
+                string itemId)
+        {
+            GameBananaModMetadata metadata =
+                new GameBananaModMetadata();
+
+            if (!string.Equals(
+                itemType,
+                "Mod",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return metadata;
+            }
+
+            if (!int.TryParse(
+                itemId,
+                out int parsedItemId))
+            {
+                return metadata;
+            }
+
+            string apiUrl =
+                "https://api.gamebanana.com/Core/Item/Data" +
+                "?itemtype=Mod" +
+                "&itemid=" +
+                parsedItemId +
+                "&fields=name,description,authors" +
+                "&return_keys=1" +
+                "&format=json";
+
+            try
+            {
+                using HttpClient client =
+                    new HttpClient();
+
+                client.Timeout =
+                    TimeSpan.FromSeconds(30);
+
+                client.DefaultRequestHeaders.UserAgent.ParseAdd(
+                    "Infinity Modgen Manager");
+
+                using HttpResponseMessage response =
+                    await client.GetAsync(
+                        apiUrl);
+
+                response.EnsureSuccessStatusCode();
+
+                string json =
+                    await response.Content.ReadAsStringAsync();
+
+                using JsonDocument document =
+                    JsonDocument.Parse(json);
+
+                JsonElement root =
+                    document.RootElement;
+
+                JsonElement metadataObject =
+                    root;
+
+                if (root.ValueKind ==
+                    JsonValueKind.Array &&
+                    root.GetArrayLength() > 0)
+                {
+                    metadataObject =
+                        root[0];
+                }
+
+                if (metadataObject.ValueKind ==
+                    JsonValueKind.Object)
+                {
+                    if (metadataObject.TryGetProperty(
+                        "name",
+                        out JsonElement nameElement))
+                    {
+                        metadata.Name =
+                            ExtractJsonString(
+                                nameElement);
+                    }
+
+                    if (metadataObject.TryGetProperty(
+                        "description",
+                        out JsonElement descriptionElement))
+                    {
+                        metadata.Description =
+                            ExtractJsonString(
+                                descriptionElement);
+                    }
+
+                    if (metadataObject.TryGetProperty(
+                        "authors",
+                        out JsonElement authorsElement))
+                    {
+                        metadata.Author =
+                            ExtractAuthorName(
+                                authorsElement);
+                    }
+                }
+            }
+            catch
+            {
+                /*
+                 * Metadata is optional.
+                 *
+                 * Installation should still work if
+                 * GameBanana's metadata request fails.
+                 */
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                    metadata.Name) ||
+                string.IsNullOrWhiteSpace(
+                    metadata.Description) ||
+                string.IsNullOrWhiteSpace(
+                    metadata.Author))
+            {
+                try
+                {
+                    string fallbackUrl =
+                        "https://api.gamebanana.com/Core/Item/Data" +
+                        "?itemtype=Mod" +
+                        "&itemid=" +
+                        parsedItemId +
+                        "&fields=name,description,authors" +
+                        "&format=json";
+
+                    using HttpClient client =
+                        new HttpClient();
+
+                    client.Timeout =
+                        TimeSpan.FromSeconds(30);
+
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+                        "Infinity Modgen Manager");
+
+                    using HttpResponseMessage response =
+                        await client.GetAsync(
+                            fallbackUrl);
+
+                    response.EnsureSuccessStatusCode();
+
+                    string json =
+                        await response.Content.ReadAsStringAsync();
+
+                    using JsonDocument document =
+                        JsonDocument.Parse(json);
+
+                    JsonElement root =
+                        document.RootElement;
+
+                    if (root.ValueKind ==
+                        JsonValueKind.Array)
+                    {
+                        if (root.GetArrayLength() >= 1 &&
+                            string.IsNullOrWhiteSpace(
+                                metadata.Name))
+                        {
+                            metadata.Name =
+                                ExtractJsonString(
+                                    root[0]);
+                        }
+
+                        if (root.GetArrayLength() >= 2 &&
+                            string.IsNullOrWhiteSpace(
+                                metadata.Description))
+                        {
+                            metadata.Description =
+                                ExtractJsonString(
+                                    root[1]);
+                        }
+
+                        if (root.GetArrayLength() >= 3 &&
+                            string.IsNullOrWhiteSpace(
+                                metadata.Author))
+                        {
+                            metadata.Author =
+                                ExtractAuthorName(
+                                    root[2]);
+                        }
+                    }
+                }
+                catch
+                {
+                    // Keep whatever metadata was successfully retrieved.
+                }
+            }
+
+            return metadata;
+        }
+
+        private static string? ExtractJsonString(
+            JsonElement element)
+        {
+            if (element.ValueKind ==
+                JsonValueKind.String)
+            {
+                return element.GetString();
+            }
+
+            return null;
+        }
+
+        private static string? ExtractAuthorName(
+            JsonElement element)
+        {
+            if (element.ValueKind ==
+                JsonValueKind.String)
+            {
+                return element.GetString();
+            }
+
+            if (element.ValueKind ==
+                JsonValueKind.Array)
+            {
+                foreach (JsonElement author in element.EnumerateArray())
+                {
+                    string? name =
+                        ExtractAuthorName(
+                            author);
+
+                    if (!string.IsNullOrWhiteSpace(
+                        name))
+                    {
+                        return name;
+                    }
+                }
+
+                return null;
+            }
+
+            if (element.ValueKind ==
+                JsonValueKind.Object)
+            {
+                if (element.TryGetProperty(
+                    "name",
+                    out JsonElement nameElement))
+                {
+                    return ExtractJsonString(
+                        nameElement);
+                }
+
+                if (element.TryGetProperty(
+                    "username",
+                    out JsonElement usernameElement))
+                {
+                    return ExtractJsonString(
+                        usernameElement);
+                }
+
+                if (element.TryGetProperty(
+                    "authors",
+                    out JsonElement authorsElement))
+                {
+                    return ExtractAuthorName(
+                        authorsElement);
+                }
+            }
+
+            return null;
+        }
+
+        private async Task<string?> GetGameBananaGameNameAsync(
+            string itemType,
+            string itemId)
+        {
+            if (!string.Equals(
+                itemType,
+                "Mod",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (!int.TryParse(
+                itemId,
+                out int parsedItemId))
+            {
+                throw new InvalidOperationException(
+                    "The GameBanana Mod ID is invalid: " +
+                    itemId);
+            }
+
+            string apiUrl =
+                "https://api.gamebanana.com/Core/Item/Data" +
+                "?itemtype=Mod" +
+                "&itemid=" +
+                parsedItemId +
+                "&fields=Game().name" +
+                "&format=json";
+
+            using HttpClient client =
+                new HttpClient();
+
+            client.Timeout =
+                TimeSpan.FromSeconds(30);
+
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(
+                "Infinity Modgen Manager");
+
+            using HttpResponseMessage response =
+                await client.GetAsync(
+                    apiUrl);
+
+            response.EnsureSuccessStatusCode();
+
+            string json =
+                await response.Content.ReadAsStringAsync();
+
+            using JsonDocument document =
+                JsonDocument.Parse(json);
+
+            JsonElement root =
+                document.RootElement;
+
+            if (root.ValueKind ==
+                JsonValueKind.Array &&
+                root.GetArrayLength() > 0)
+            {
+                JsonElement firstValue =
+                    root[0];
+
+                if (firstValue.ValueKind ==
+                    JsonValueKind.String)
+                {
+                    return firstValue.GetString();
+                }
+            }
+
+            string keyedApiUrl =
+                "https://api.gamebanana.com/Core/Item/Data" +
+                "?itemtype=Mod" +
+                "&itemid=" +
+                parsedItemId +
+                "&fields=Game().name" +
+                "&return_keys=1" +
+                "&format=json";
+
+            using HttpResponseMessage keyedResponse =
+                await client.GetAsync(
+                    keyedApiUrl);
+
+            keyedResponse.EnsureSuccessStatusCode();
+
+            string keyedJson =
+                await keyedResponse.Content.ReadAsStringAsync();
+
+            using JsonDocument keyedDocument =
+                JsonDocument.Parse(keyedJson);
+
+            JsonElement keyedRoot =
+                keyedDocument.RootElement;
+
+            if (keyedRoot.ValueKind ==
+                JsonValueKind.Object)
+            {
+                if (keyedRoot.TryGetProperty(
+                        "Game().name",
+                        out JsonElement gameNameElement))
+                {
+                    if (gameNameElement.ValueKind ==
+                        JsonValueKind.String)
+                    {
+                        return gameNameElement.GetString();
+                    }
+                }
+            }
+
+            if (keyedRoot.ValueKind ==
+                JsonValueKind.Array &&
+                keyedRoot.GetArrayLength() > 0)
+            {
+                JsonElement firstObject =
+                    keyedRoot[0];
+
+                if (firstObject.ValueKind ==
+                    JsonValueKind.Object &&
+                    firstObject.TryGetProperty(
+                        "Game().name",
+                        out JsonElement arrayGameName))
+                {
+                    if (arrayGameName.ValueKind ==
+                        JsonValueKind.String)
+                    {
+                        return arrayGameName.GetString();
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private Game? FindMatchingGame(
+            string? gameName)
+        {
+            if (string.IsNullOrWhiteSpace(
+                gameName))
+            {
+                return null;
+            }
+
+            string normalizedGameName =
+                gameName.Trim();
+
+            Game? exactMatch =
+                games.FirstOrDefault(
+                    game =>
+                        string.Equals(
+                            game.Name,
+                            normalizedGameName,
+                            StringComparison.OrdinalIgnoreCase));
+
+            if (exactMatch != null)
+                return exactMatch;
+
+            Game? presetMatch =
+                games.FirstOrDefault(
+                    game =>
+                        string.Equals(
+                            game.Preset,
+                            normalizedGameName,
+                            StringComparison.OrdinalIgnoreCase));
+
+            if (presetMatch != null)
+                return presetMatch;
+
+            if (normalizedGameName.Contains(
+                    "Sonic Omens",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                Game? sonicOmens =
+                    games.FirstOrDefault(
+                        game =>
+                            string.Equals(
+                                game.Preset,
+                                "Sonic Omens",
+                                StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(
+                                game.Name,
+                                "Sonic Omens",
+                                StringComparison.OrdinalIgnoreCase));
+
+                if (sonicOmens != null)
+                    return sonicOmens;
+            }
+
+            return null;
         }
 
         private void AddGame_Click(
             object sender,
             RoutedEventArgs e)
         {
-            OpenFileDialog dialog = new OpenFileDialog
-            {
-                Title = "Select Game Executable",
-                Filter = "Game Executables (*.exe)|*.exe",
-                Multiselect = false
-            };
+            OpenFileDialog dialog =
+                new OpenFileDialog
+                {
+                    Title =
+                        "Select Game Executable",
+
+                    Filter =
+                        "Game Executables (*.exe)|*.exe",
+
+                    Multiselect =
+                        false
+                };
 
             bool? result =
                 dialog.ShowDialog();
@@ -92,6 +973,23 @@ namespace Modgen_Loader
 
             if (existingGame != null)
             {
+                try
+                {
+                    runtimeDeploymentService.EnsureShimInstalled(
+                        existingGame);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        "The game is already assigned, but the Infinity runtime could not be installed.\n\n" +
+                        ex.Message,
+                        "Infinity Modgen Manager",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+
+                    return;
+                }
+
                 selectedGame =
                     existingGame;
 
@@ -112,6 +1010,23 @@ namespace Modgen_Loader
 
             if (game == null)
                 return;
+
+            try
+            {
+                runtimeDeploymentService.EnsureShimInstalled(
+                    game);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "The game was added, but the Infinity runtime could not be installed.\n\n" +
+                    ex.Message,
+                    "Infinity Modgen Manager",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
+                return;
+            }
 
             games.Add(game);
 
@@ -141,7 +1056,7 @@ namespace Modgen_Loader
             {
                 MessageBox.Show(
                     "Could not determine the game's directory.",
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
 
@@ -163,7 +1078,7 @@ namespace Modgen_Loader
                     "Could not find the game's Unreal Engine Content folder.\n\n" +
                     "The selected executable does not appear to have a supported " +
                     "Infinity Engine / Unreal Engine content structure.",
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
 
@@ -365,78 +1280,72 @@ namespace Modgen_Loader
 
         private void LoadGames()
         {
-            games.Clear();
-
-            if (!File.Exists(
-                GamesConfigPath))
-            {
-                UpdateSettingsPage();
-                return;
-            }
-
             try
             {
+                if (!File.Exists(GamesConfigPath))
+                    return;
+
                 string json =
                     File.ReadAllText(
                         GamesConfigPath);
 
-                Game[]? savedGames =
-                    JsonSerializer.Deserialize<Game[]>(
+                List<Game>? loadedGames =
+                    JsonSerializer.Deserialize<List<Game>>(
                         json);
 
-                if (savedGames == null)
-                {
-                    UpdateSettingsPage();
+                if (loadedGames == null)
                     return;
+
+                games.Clear();
+
+                bool iconsChanged = false;
+
+                foreach (Game game in loadedGames)
+                {
+                    if (string.IsNullOrWhiteSpace(game.IconPath) ||
+                        !File.Exists(game.IconPath))
+                    {
+                        if (File.Exists(game.ExePath))
+                        {
+                            string iconPath =
+                                ExtractGameIcon(
+                                    game.ExePath);
+
+                            if (!string.IsNullOrWhiteSpace(iconPath))
+                            {
+                                game.IconPath = iconPath;
+                                iconsChanged = true;
+                            }
+                        }
+                    }
+
+                    try
+                    {
+                        runtimeDeploymentService.EnsureShimInstalled(
+                            game);
+                    }
+                    catch
+                    {
+                        // Runtime deployment failure should not
+                        // prevent the game from appearing.
+                    }
+
+                    games.Add(game);
                 }
 
-                foreach (Game game in savedGames)
+                if (iconsChanged)
                 {
-                    if (string.IsNullOrWhiteSpace(
-                        game.ExePath))
-                    {
-                        continue;
-                    }
-
-                    if (!File.Exists(
-                        game.ExePath))
-                    {
-                        continue;
-                    }
-
-                    if (string.IsNullOrWhiteSpace(
-                        game.Preset))
-                    {
-                        game.Preset =
-                            "Unreal Engine";
-                    }
-
-                    games.Add(
-                        game);
+                    SaveGames();
                 }
 
                 if (games.Count > 0)
                 {
-                    selectedGame =
-                        games[0];
-
-                    GameSelector.SelectedItem =
-                        selectedGame;
-
-                    ScanMods(
-                        selectedGame);
+                    GameSelector.SelectedIndex = 0;
                 }
-
-                UpdateSettingsPage();
             }
-            catch (Exception ex)
+            catch
             {
-                MessageBox.Show(
-                    "The saved game list could not be loaded.\n\n" +
-                    ex.Message,
-                    "Infinity Modgen Loader",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                games.Clear();
             }
         }
 
@@ -467,7 +1376,7 @@ namespace Modgen_Loader
                 MessageBox.Show(
                     "The game list could not be saved.\n\n" +
                     ex.Message,
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
             }
@@ -482,11 +1391,44 @@ namespace Modgen_Loader
                 selectedGame =
                     game;
 
+                try
+                {
+                    runtimeDeploymentService.EnsureShimInstalled(
+                        game);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        "The game's runtime could not be installed.\n\n" +
+                        ex.Message,
+                        "Infinity Modgen Manager",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+
                 ScanMods(
                     game);
 
                 UpdateSettingsPage();
             }
+        }
+
+        private void RefreshMods()
+        {
+            if (selectedGame == null)
+                return;
+
+            ScanMods(
+                selectedGame);
+
+            UpdateSettingsPage();
+        }
+
+        private void RefreshMods_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            RefreshMods();
         }
 
         private void ScanMods(
@@ -549,14 +1491,15 @@ namespace Modgen_Loader
             string iniPath,
             string modDirectory)
         {
-            Mod mod = new Mod
-            {
-                ModDirectory =
-                    modDirectory,
+            Mod mod =
+                new Mod
+                {
+                    ModDirectory =
+                        modDirectory,
 
-                ModType =
-                    "PAK"
-            };
+                    ModType =
+                        "PAK"
+                };
 
             string[] lines =
                 File.ReadAllLines(
@@ -740,25 +1683,24 @@ namespace Modgen_Loader
                     modsDirectory,
                     "loader.ini");
 
-            using (StreamWriter writer =
-                   new StreamWriter(
-                       configPath,
-                       false))
+            using StreamWriter writer =
+                new StreamWriter(
+                    configPath,
+                    false);
+
+            writer.WriteLine(
+                "; Infinity Modgen Manager configuration");
+
+            foreach (Mod mod in mods)
             {
+                string directoryName =
+                    Path.GetFileName(
+                        mod.ModDirectory);
+
                 writer.WriteLine(
-                    "; Infinity Modgen Loader configuration");
-
-                foreach (Mod mod in mods)
-                {
-                    string directoryName =
-                        Path.GetFileName(
-                            mod.ModDirectory);
-
-                    writer.WriteLine(
-                        directoryName +
-                        "=" +
-                        mod.IsEnabled);
-                }
+                    directoryName +
+                    "=" +
+                    mod.IsEnabled);
             }
         }
 
@@ -863,25 +1805,24 @@ namespace Modgen_Loader
                     modsDirectory,
                     "loader_order.ini");
 
-            using (StreamWriter writer =
-                   new StreamWriter(
-                       configPath,
-                       false))
+            using StreamWriter writer =
+                new StreamWriter(
+                    configPath,
+                    false);
+
+            writer.WriteLine(
+                "; Infinity Modgen Manager mod load order");
+
+            foreach (Mod mod in mods)
             {
+                string directoryName =
+                    Path.GetFileName(
+                        mod.ModDirectory);
+
                 writer.WriteLine(
-                    "; Infinity Modgen Loader mod load order");
-
-                foreach (Mod mod in mods)
-                {
-                    string directoryName =
-                        Path.GetFileName(
-                            mod.ModDirectory);
-
-                    writer.WriteLine(
-                        directoryName +
-                        "=" +
-                        mod.LoadOrder);
-                }
+                    directoryName +
+                    "=" +
+                    mod.LoadOrder);
             }
         }
 
@@ -1029,7 +1970,7 @@ namespace Modgen_Loader
             {
                 MessageBox.Show(
                     "Please select a game first.",
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
@@ -1048,7 +1989,7 @@ namespace Modgen_Loader
             {
                 MessageBox.Show(
                     "Please select a game first.",
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
@@ -1067,7 +2008,7 @@ namespace Modgen_Loader
             {
                 MessageBox.Show(
                     "The folder path is not configured.",
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
 
@@ -1080,7 +2021,7 @@ namespace Modgen_Loader
                 MessageBox.Show(
                     "The folder could not be found.\n\n" +
                     folderPath,
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
 
@@ -1109,7 +2050,7 @@ namespace Modgen_Loader
                 MessageBox.Show(
                     "The folder could not be opened.\n\n" +
                     ex.Message,
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
@@ -1123,7 +2064,7 @@ namespace Modgen_Loader
             {
                 MessageBox.Show(
                     "Please select a game first.",
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
@@ -1134,7 +2075,7 @@ namespace Modgen_Loader
                 MessageBox.Show(
                     "Remove \"" +
                     selectedGame.Name +
-                    "\" from Infinity Modgen Loader?\n\n" +
+                    "\" from Infinity Modgen Manager?\n\n" +
                     "This will not uninstall or delete the game.",
                     "Reset Game Configuration",
                     MessageBoxButton.YesNo,
@@ -1186,7 +2127,7 @@ namespace Modgen_Loader
 
             MessageBox.Show(
                 "The game configuration has been removed.",
-                "Infinity Modgen Loader",
+                "Infinity Modgen Manager",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
@@ -1196,7 +2137,7 @@ namespace Modgen_Loader
             RoutedEventArgs e)
         {
             MessageBox.Show(
-                "Mod installation will be added here.",
+                "GameBanana 1-Click installation is handled automatically when a GameBanana 1-Click link is opened.",
                 "Install Mod",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -1338,15 +2279,15 @@ namespace Modgen_Loader
                 " GB";
         }
 
-        private void LaunchGame_Click(
-            object sender,
-            RoutedEventArgs e)
+private void LaunchGame_Click(
+    object sender,
+    RoutedEventArgs e)
         {
             if (selectedGame == null)
             {
                 MessageBox.Show(
                     "Please select a game first.",
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
@@ -1356,12 +2297,12 @@ namespace Modgen_Loader
             if (string.IsNullOrWhiteSpace(
                 selectedGame.ExePath) ||
                 !File.Exists(
-                    selectedGame.ExePath))
+                selectedGame.ExePath))
             {
                 MessageBox.Show(
                     "The game's executable could not be found.\n\n" +
                     selectedGame.ExePath,
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
 
@@ -1370,6 +2311,84 @@ namespace Modgen_Loader
 
             try
             {
+                runtimeDeploymentService.EnsureShimInstalled(
+                    selectedGame);
+
+                SaveModStates(
+                    selectedGame);
+
+                SaveModOrder(
+                    selectedGame);
+
+                pakManager.ApplyMods(
+                    selectedGame,
+                    mods);
+
+                string configDirectory =
+                    Path.Combine(
+                        selectedGame.ModsDirectory,
+                        "Config");
+
+                Directory.CreateDirectory(
+                    selectedGame.ModsDirectory);
+
+                Directory.CreateDirectory(
+                    configDirectory);
+
+                SaveGames();
+
+                string launchArguments =
+                    "--mod-dir \"" +
+                    selectedGame.ModsDirectory +
+                    "\" " +
+                    "--pak-dir \"" +
+                    selectedGame.ModsDirectory +
+                    "\" " +
+                    "--cfg-dir \"" +
+                    configDirectory +
+                    "\"";
+
+                SteamShortcut? shortcut =
+                    SteamService.FindShortcutForExecutable(
+                        selectedGame.ExePath);
+
+                if (shortcut != null &&
+                    shortcut.AppId != 0)
+                {
+                    selectedGame.SteamAppId =
+                        shortcut.AppId.ToString();
+
+                    SaveGames();
+
+                    bool launchedThroughSteam =
+                        SteamService.TryLaunchByAppId(
+                            shortcut.AppId);
+
+                    if (!launchedThroughSteam)
+                    {
+                        ProcessStartInfo fallbackStartInfo =
+                            new ProcessStartInfo
+                            {
+                                FileName =
+                                    selectedGame.ExePath,
+
+                                WorkingDirectory =
+                                    selectedGame.GameDirectory,
+
+                                Arguments =
+                                    launchArguments,
+
+                                UseShellExecute =
+                                    true
+                            };
+
+                        Process.Start(
+                            fallbackStartInfo);
+                    }
+
+                    return;
+                }
+
                 ProcessStartInfo startInfo =
                     new ProcessStartInfo
                     {
@@ -1378,6 +2397,9 @@ namespace Modgen_Loader
 
                         WorkingDirectory =
                             selectedGame.GameDirectory,
+
+                        Arguments =
+                            launchArguments,
 
                         UseShellExecute =
                             true
@@ -1391,7 +2413,114 @@ namespace Modgen_Loader
                 MessageBox.Show(
                     "The game could not be launched.\n\n" +
                     ex.Message,
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+
+        private void TestSteamOmens_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (selectedGame == null)
+            {
+                MessageBox.Show(
+                    "Please select a game first.",
+                    "Steam Test",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+
+                return;
+            }
+
+            try
+            {
+                SteamShortcut? shortcut =
+                    SteamService.FindShortcutForExecutable(
+                        selectedGame.ExePath);
+
+                if (shortcut == null)
+                {
+                    MessageBox.Show(
+                        selectedGame.Name +
+                        " could not be found in your Steam non-Steam shortcuts.\n\n" +
+                        "SteamService searched the Steam userdata folders and shortcuts.vdf.",
+                        "Steam Test",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+
+                    return;
+                }
+
+                MessageBox.Show(
+                    selectedGame.Name +
+                    " Steam shortcut found!\n\n" +
+                    "Name: " +
+                    shortcut.AppName +
+                    "\n\n" +
+                    "App ID: " +
+                    shortcut.AppId +
+                    "\n\n" +
+                    "Executable:\n" +
+                    shortcut.Exe +
+                    "\n\n" +
+                    "Start Directory:\n" +
+                    shortcut.StartDir +
+                    "\n\n" +
+                    "Steam URI:\n" +
+                    "steam://rungameid/" +
+                    shortcut.AppId,
+                    "Steam Test",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "The Steam shortcut test failed.\n\n" +
+                    ex.Message,
+                    "Steam Test",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private void FixRuntimeDlls_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            if (selectedGame == null)
+            {
+                MessageBox.Show(
+                    "Please select a game first.",
+                    "Fix Runtime DLLs",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+
+                return;
+            }
+
+            try
+            {
+                runtimeDeploymentService.ForceRepairRuntime(
+                    selectedGame);
+
+                MessageBox.Show(
+                    "The runtime DLLs have been repaired successfully.\n\n" +
+                    "dwmapi.dll and ue4ss.dll have been updated for:\n" +
+                    selectedGame.Name,
+                    "Fix Runtime DLLs",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "The runtime DLLs could not be repaired.\n\n" +
+                    ex.Message,
+                    "Fix Runtime DLLs",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
@@ -1405,7 +2534,7 @@ namespace Modgen_Loader
             {
                 MessageBox.Show(
                     "Please select a game first.",
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
@@ -1428,7 +2557,7 @@ namespace Modgen_Loader
 
                 MessageBox.Show(
                     "Mod configuration saved and applied.",
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
@@ -1437,10 +2566,11 @@ namespace Modgen_Loader
                 MessageBox.Show(
                     "Failed to apply mods.\n\n" +
                     ex.Message,
-                    "Infinity Modgen Loader",
+                    "Infinity Modgen Manager",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
         }
     }
 }
+

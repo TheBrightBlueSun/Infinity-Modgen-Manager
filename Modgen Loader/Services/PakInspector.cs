@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace Modgen_Loader.Services
+namespace InfinityModgenManager.Services
 {
     public class PakInspector
     {

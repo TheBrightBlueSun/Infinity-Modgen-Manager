@@ -2,7 +2,7 @@
 using System.Data;
 using System.Windows;
 
-namespace Modgen_Loader
+namespace InfinityModgenManager
 {
     /// <summary>
     /// Interaction logic for App.xaml

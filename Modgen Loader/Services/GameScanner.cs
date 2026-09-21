@@ -1,9 +1,10 @@
-﻿using System;
+﻿using InfinityModgenManager.Models;
+using InfinityModgenManager.Models;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using Modgen_Loader.Models;
 
-namespace Modgen_Loader.Services
+namespace InfinityModgenManager.Services
 {
     public class GameScanner
     {

@@ -1,4 +1,4 @@
-﻿namespace Modgen_Loader.Models
+﻿namespace InfinityModgenManager.Models
 {
     public class Mod
     {
@@ -7,7 +7,7 @@
         public string Version { get; set; } = "";
         public string Description { get; set; } = "";
 
-    public string PakPath { get; set; } = "";
+        public string PakPath { get; set; } = "";
         public string PakFileName { get; set; } = "";
 
         public string ModDirectory { get; set; } = "";
@@ -18,6 +18,4 @@
 
         public int LoadOrder { get; set; } = 0;
     }
-
-
 }

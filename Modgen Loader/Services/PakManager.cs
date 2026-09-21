@@ -1,21 +1,22 @@
-﻿using Modgen_Loader.Models;
+﻿using InfinityModgenManager.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
 
-namespace Modgen_Loader.Services
+namespace InfinityModgenManager.Services
 {
     public class PakManager
     {
-        private const string ManagedModsFolderName = "~mods";
-
         private const string ManagedMoviesFolderName =
             ".infinity_modgen_movie_backups";
 
         private const string ManagedMoviesManifestFileName =
             ".infinity_modgen_movies.json";
+
+        private const string RuntimeManifestFileName =
+            ".infinity_modgen_mods.json";
 
         public void ApplyMods(
             Game game,
@@ -39,6 +40,19 @@ namespace Modgen_Loader.Services
                 enabledMods);
         }
 
+        /// <summary>
+        /// Returns the Manager's existing mod directory.
+        /// PAK files remain in their installed mod directories and
+        /// are not copied into a separate deployment directory.
+        /// This directory is passed to shimloader as --pak-dir.
+        /// </summary>
+        public string GetPakDirectory(
+            Game game)
+        {
+            return GetRuntimeManifestDirectory(
+                game);
+        }
+
         private void ApplyPakMods(
             Game game,
             IEnumerable<Mod> enabledMods)
@@ -47,81 +61,245 @@ namespace Modgen_Loader.Services
                 return;
 
             if (string.IsNullOrWhiteSpace(
-                game.PaksDirectory))
+                game.GameDirectory))
             {
                 throw new IOException(
-                    "The game's PAK directory has not been configured.");
+                    "The game's directory has not been configured.");
             }
 
-            string managedModsDirectory =
-                Path.Combine(
-                    game.PaksDirectory,
-                    ManagedModsFolderName);
+            string managerModsDirectory =
+                game.ModsDirectory;
+
+            if (string.IsNullOrWhiteSpace(
+                managerModsDirectory))
+            {
+                managerModsDirectory =
+                    Path.Combine(
+                        game.GameDirectory,
+                        "Mods");
+
+                game.ModsDirectory =
+                    managerModsDirectory;
+            }
 
             Directory.CreateDirectory(
-                managedModsDirectory);
+                managerModsDirectory);
 
-            /*
-             * Remove every folder previously managed
-             * by Infinity Modgen Loader.
-             *
-             * CrossPatch uses priority-prefixed folders,
-             * for example:
-             *
-             * 000.Project Reicho
-             * 001.Another Mod
-             */
-            CleanManagedModFolders(
-                managedModsDirectory);
-
-            List<Mod> pakMods =
-                enabledMods
-                    .Where(mod =>
-                        string.Equals(
-                            mod.ModType,
-                            "PAK",
-                            StringComparison.OrdinalIgnoreCase))
-                    .ToList();
+            List<ExternalPakMod> pakMods =
+                new List<ExternalPakMod>();
 
             int priority = 0;
 
-            foreach (Mod mod in pakMods)
+            foreach (Mod mod in enabledMods)
             {
-                if (string.IsNullOrWhiteSpace(
-                    mod.PakPath))
+                if (!string.Equals(
+                    mod.ModType,
+                    "PAK",
+                    StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                if (!File.Exists(
-                    mod.PakPath))
+                if (string.IsNullOrWhiteSpace(
+                    mod.ModDirectory))
                 {
                     continue;
                 }
+
+                if (!Directory.Exists(
+                    mod.ModDirectory))
+                {
+                    continue;
+                }
+
+                List<string> pakFiles =
+                    GetPakFiles(
+                        mod);
+
+                if (pakFiles.Count == 0)
+                    continue;
 
                 string modName =
                     GetSafeModName(
                         mod);
 
-                string priorityFolderName =
-                    priority.ToString("D3") +
-                    "." +
-                    modName;
+                /*
+                 * PAK files are deliberately NOT copied.
+                 *
+                 * The existing PAK files remain in the Manager's
+                 * mod library. The runtime manifest records the
+                 * enabled mod and its priority, while shimloader's
+                 * --pak-dir points at the Manager's mod directory.
+                 */
+                pakMods.Add(
+                    new ExternalPakMod
+                    {
+                        Name =
+                            mod.Name,
 
-                string destinationFolder =
-                    Path.Combine(
-                        managedModsDirectory,
-                        priorityFolderName);
+                        Author =
+                            mod.Author,
 
-                Directory.CreateDirectory(
-                    destinationFolder);
+                        Version =
+                            mod.Version,
 
-                CopyPakFiles(
-                    mod,
-                    destinationFolder);
+                        ModDirectory =
+                            mod.ModDirectory,
+
+                        PakPath =
+                            mod.PakPath,
+
+                        Priority =
+                            priority,
+
+                        PriorityFolderName =
+                            modName,
+
+                        PakFiles =
+                            pakFiles
+                    });
 
                 priority++;
             }
+
+            SaveRuntimeManifest(
+                game,
+                pakMods);
+        }
+
+        private void SaveRuntimeManifest(
+            Game game,
+            List<ExternalPakMod> pakMods)
+        {
+            string manifestDirectory =
+                GetRuntimeManifestDirectory(
+                    game);
+
+            Directory.CreateDirectory(
+                manifestDirectory);
+
+            string manifestPath =
+                Path.Combine(
+                    manifestDirectory,
+                    RuntimeManifestFileName);
+
+            string json =
+                JsonSerializer.Serialize(
+                    pakMods,
+                    new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    });
+
+            File.WriteAllText(
+                manifestPath,
+                json);
+        }
+
+        /// <summary>
+        /// Resolves the actual game-root "Mods" directory that
+        /// shimloader looks for its runtime manifest in
+        /// (<GameRoot>\Mods\.infinity_modgen_mods.json), where
+        /// GameRoot is the folder containing Binaries\Win64\, not
+        /// necessarily the folder the user's launcher exe sits in.
+        /// Falls back to game.GameDirectory\Mods if the engine
+        /// content directory hasn't been detected yet.
+        /// </summary>
+        private string GetRuntimeManifestDirectory(
+            Game game)
+        {
+            string? gameRootDirectory =
+                !string.IsNullOrWhiteSpace(
+                    game.EngineContentDirectory)
+                    ? Path.GetDirectoryName(
+                        game.EngineContentDirectory)
+                    : null;
+
+            if (!string.IsNullOrWhiteSpace(
+                gameRootDirectory))
+            {
+                string resolvedDirectory =
+                    Path.Combine(
+                        gameRootDirectory,
+                        "Mods");
+
+                game.ModsDirectory =
+                    resolvedDirectory;
+
+                return resolvedDirectory;
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                game.ModsDirectory))
+            {
+                return game.ModsDirectory;
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                game.GameDirectory))
+            {
+                string fallbackDirectory =
+                    Path.Combine(
+                        game.GameDirectory,
+                        "Mods");
+
+                game.ModsDirectory =
+                    fallbackDirectory;
+
+                return fallbackDirectory;
+            }
+
+            throw new IOException(
+                "Unable to determine where the Infinity Modgen Manager runtime manifest should be stored.");
+        }
+
+        private List<string> GetPakFiles(
+            Mod mod)
+        {
+            List<string> pakFiles =
+                new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(
+                mod.PakPath) &&
+                File.Exists(
+                mod.PakPath))
+            {
+                pakFiles.Add(
+                    mod.PakPath);
+            }
+
+            if (Directory.Exists(
+                mod.ModDirectory))
+            {
+                string[] files =
+                    Directory.GetFiles(
+                        mod.ModDirectory,
+                        "*",
+                        SearchOption.TopDirectoryOnly);
+
+                foreach (string file in files)
+                {
+                    string extension =
+                        Path.GetExtension(
+                            file);
+
+                    if (!IsPakRelatedFile(
+                        extension))
+                    {
+                        continue;
+                    }
+
+                    if (!pakFiles.Contains(
+                        file,
+                        StringComparer.OrdinalIgnoreCase))
+                    {
+                        pakFiles.Add(
+                            file);
+                    }
+                }
+            }
+
+            return pakFiles;
         }
 
         private void ApplyMovieMods(
@@ -160,16 +338,9 @@ namespace Modgen_Loader.Services
 
             Dictionary<string, ManagedMovieInfo>
                 previousManagedMovies =
-                    LoadManagedMovieFiles(
-                        gameMoviesDirectory);
+                LoadManagedMovieFiles(
+                    gameMoviesDirectory);
 
-            /*
-             * First restore everything that was installed
-             * by the previous Apply operation.
-             *
-             * This gets the game back to its original state
-             * before we calculate the new mod state.
-             */
             RestorePreviousMovies(
                 gameMoviesDirectory,
                 backupDirectory,
@@ -177,8 +348,8 @@ namespace Modgen_Loader.Services
 
             Dictionary<string, ManagedMovieInfo>
                 currentManagedMovies =
-                    new Dictionary<string, ManagedMovieInfo>(
-                        StringComparer.OrdinalIgnoreCase);
+                new Dictionary<string, ManagedMovieInfo>(
+                    StringComparer.OrdinalIgnoreCase);
 
             foreach (Mod mod in enabledMods)
             {
@@ -218,11 +389,6 @@ namespace Modgen_Loader.Services
                             gameMoviesDirectory,
                             relativeMoviePath);
 
-                    /*
-                     * If this movie has not already been managed,
-                     * check whether the original game has a movie
-                     * with the same filename.
-                     */
                     if (!currentManagedMovies.ContainsKey(
                         relativeMoviePath))
                     {
@@ -277,12 +443,6 @@ namespace Modgen_Loader.Services
                             destinationDirectory);
                     }
 
-                    /*
-                     * Mods are processed in LoadOrder.
-                     *
-                     * Therefore a later mod replaces the movie
-                     * supplied by an earlier mod.
-                     */
                     File.Copy(
                         sourceMovie,
                         destinationPath,
@@ -290,10 +450,6 @@ namespace Modgen_Loader.Services
                 }
             }
 
-            /*
-             * Remove backups belonging to movies that are no
-             * longer managed.
-             */
             CleanUnusedMovieBackups(
                 backupDirectory,
                 currentManagedMovies);
@@ -355,10 +511,6 @@ namespace Modgen_Loader.Services
                 }
                 else
                 {
-                    /*
-                     * The file did not exist before the mod
-                     * was installed, so remove the mod's copy.
-                     */
                     if (File.Exists(
                         destinationPath))
                     {
@@ -421,10 +573,6 @@ namespace Modgen_Loader.Services
             }
             catch
             {
-                /*
-                 * If the manifest cannot be read,
-                 * do not risk deleting arbitrary files.
-                 */
                 return
                     new Dictionary<
                         string,
@@ -524,163 +672,6 @@ namespace Modgen_Loader.Services
             }
         }
 
-        private void CleanManagedModFolders(
-            string managedModsDirectory)
-        {
-            if (!Directory.Exists(
-                managedModsDirectory))
-            {
-                return;
-            }
-
-            string[] directories =
-                Directory.GetDirectories(
-                    managedModsDirectory);
-
-            foreach (string directory in directories)
-            {
-                string directoryName =
-                    Path.GetFileName(
-                        directory);
-
-                if (string.IsNullOrWhiteSpace(
-                    directoryName))
-                {
-                    continue;
-                }
-
-                if (IsManagedPriorityFolder(
-                    directoryName))
-                {
-                    Directory.Delete(
-                        directory,
-                        true);
-                }
-            }
-        }
-
-        private bool IsManagedPriorityFolder(
-            string directoryName)
-        {
-            if (directoryName.Length < 5)
-                return false;
-
-            int dotIndex =
-                directoryName.IndexOf('.');
-
-            if (dotIndex < 3)
-                return false;
-
-            string priority =
-                directoryName.Substring(
-                    0,
-                    dotIndex);
-
-            if (!int.TryParse(
-                priority,
-                out _))
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        private void CopyPakFiles(
-            Mod mod,
-            string destinationFolder)
-        {
-            string sourceDirectory =
-                mod.ModDirectory;
-
-            if (!Directory.Exists(
-                sourceDirectory))
-            {
-                return;
-            }
-
-            /*
-             * A mod can contain more than one PAK,
-             * so copy every PAK/UCAS/UTOC belonging
-             * to the mod.
-             */
-            string[] files =
-                Directory.GetFiles(
-                    sourceDirectory,
-                    "*",
-                    SearchOption.TopDirectoryOnly);
-
-            foreach (string sourceFile in files)
-            {
-                string extension =
-                    Path.GetExtension(
-                        sourceFile);
-
-                if (!IsPakRelatedFile(
-                    extension))
-                {
-                    continue;
-                }
-
-                string sourceFileName =
-                    Path.GetFileName(
-                        sourceFile);
-
-                if (string.IsNullOrWhiteSpace(
-                    sourceFileName))
-                {
-                    continue;
-                }
-
-                string destinationFileName =
-                    AddPSuffix(
-                        sourceFileName);
-
-                string destinationPath =
-                    Path.Combine(
-                        destinationFolder,
-                        destinationFileName);
-
-                File.Copy(
-                    sourceFile,
-                    destinationPath,
-                    true);
-            }
-
-            /*
-             * If the mod.ini explicitly identifies a
-             * PAK somewhere outside the mod directory,
-             * make sure that PAK is also copied.
-             */
-            if (!string.IsNullOrWhiteSpace(
-                mod.PakPath) &&
-                File.Exists(
-                    mod.PakPath))
-            {
-                string sourceFileName =
-                    Path.GetFileName(
-                        mod.PakPath);
-
-                if (!string.IsNullOrWhiteSpace(
-                    sourceFileName))
-                {
-                    string destinationFileName =
-                        AddPSuffix(
-                            sourceFileName);
-
-                    string destinationPath =
-                        Path.Combine(
-                            destinationFolder,
-                            destinationFileName);
-
-                    File.Copy(
-                        mod.PakPath,
-                        destinationPath,
-                        true);
-                }
-            }
-        }
-
         private bool IsPakRelatedFile(
             string extension)
         {
@@ -699,31 +690,6 @@ namespace Modgen_Loader.Services
                     extension,
                     ".utoc",
                     StringComparison.OrdinalIgnoreCase);
-        }
-
-        private string AddPSuffix(
-            string fileName)
-        {
-            string extension =
-                Path.GetExtension(
-                    fileName);
-
-            string nameWithoutExtension =
-                Path.GetFileNameWithoutExtension(
-                    fileName);
-
-            if (nameWithoutExtension
-                .EndsWith(
-                    "_P",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                return fileName;
-            }
-
-            return
-                nameWithoutExtension +
-                "_P" +
-                extension;
         }
 
         private string GetSafeModName(
@@ -756,6 +722,26 @@ namespace Modgen_Loader.Services
             }
 
             return name.Trim();
+        }
+
+        private class ExternalPakMod
+        {
+            public string Name { get; set; } = "";
+
+            public string Author { get; set; } = "";
+
+            public string Version { get; set; } = "";
+
+            public string ModDirectory { get; set; } = "";
+
+            public string PakPath { get; set; } = "";
+
+            public int Priority { get; set; }
+
+            public string PriorityFolderName { get; set; } = "";
+
+            public List<string> PakFiles { get; set; } =
+                new List<string>();
         }
 
         private class ManagedMovieInfo

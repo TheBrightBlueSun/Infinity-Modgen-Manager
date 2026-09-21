@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 
-namespace Modgen_Loader.Services
+namespace InfinityModgenManager.Services
 {
     public class PakInspectorTest
     {

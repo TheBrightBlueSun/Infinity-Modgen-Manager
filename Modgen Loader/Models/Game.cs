@@ -1,4 +1,4 @@
-﻿namespace Modgen_Loader.Models
+﻿namespace InfinityModgenManager.Models
 {
     public class Game
     {
@@ -16,5 +16,7 @@
         public string Preset { get; set; } = "";
 
         public string IconPath { get; set; } = "";
+
+        public string? SteamAppId { get; set; }
     }
 }

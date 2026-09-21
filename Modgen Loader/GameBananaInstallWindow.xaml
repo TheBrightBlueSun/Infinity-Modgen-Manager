@@ -1,0 +1,173 @@
+﻿<Window x:Class="InfinityModgenManager.GameBananaInstallWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Install Mod"
+        Width="500"
+        Height="700"
+        MinWidth="450"
+        MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Background="#1E1E1E">
+
+    <Grid Margin="24">
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title -->
+        <TextBlock Grid.Row="0"
+                   Text="Install Mod"
+                   FontSize="26"
+                   FontWeight="Bold"
+                   Foreground="White"
+                   Margin="0,0,0,20"/>
+
+        <!-- Mod information -->
+        <StackPanel Grid.Row="1">
+
+            <Border Width="180"
+                    Height="180"
+                    HorizontalAlignment="Center"
+                    Background="#2A2A2A"
+                    CornerRadius="8"
+                    Margin="0,0,0,20">
+
+                <Image x:Name="ModThumbnail"
+                       Stretch="UniformToFill"/>
+            </Border>
+
+            <TextBlock x:Name="ModNameText"
+                       Text="Loading..."
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="White"
+                       TextWrapping="Wrap"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       Margin="0,0,0,6"/>
+
+            <TextBlock x:Name="ModAuthorText"
+                       Text=""
+                       FontSize="14"
+                       Foreground="#BBBBBB"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,15"/>
+
+        </StackPanel>
+
+        <!-- Main content -->
+        <ScrollViewer Grid.Row="2"
+                      VerticalScrollBarVisibility="Auto"
+                      Margin="0,0,0,20">
+
+            <StackPanel>
+
+                <!-- Description -->
+
+                <TextBlock Text="Description"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           Foreground="White"
+                           Margin="0,0,0,6"/>
+
+                <TextBlock x:Name="ModDescriptionText"
+                           Text="Loading..."
+                           FontSize="13"
+                           Foreground="#CCCCCC"
+                           TextWrapping="Wrap"
+                           LineHeight="20"/>
+
+                <!-- Version / ID -->
+
+                <StackPanel Margin="0,20,0,0">
+
+                    <TextBlock x:Name="ModVersionText"
+                               Text="Version: Unknown"
+                               FontSize="13"
+                               Foreground="#AAAAAA"
+                               Margin="0,0,0,5"/>
+
+                    <TextBlock x:Name="ModIdText"
+                               Text="GameBanana ID: Unknown"
+                               FontSize="13"
+                               Foreground="#AAAAAA"/>
+
+                </StackPanel>
+
+                <!-- Confirmation -->
+
+                <StackPanel x:Name="ConfirmationPanel"
+                            Margin="0,30,0,0">
+
+                    <TextBlock Text="Would you like to download this mod?"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="White"
+                               TextWrapping="Wrap"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"
+                               Margin="0,0,0,15"/>
+
+                </StackPanel>
+
+                <!-- Progress -->
+
+                <StackPanel x:Name="ProgressPanel"
+                            Visibility="Collapsed"
+                            Margin="0,30,0,0">
+
+                    <TextBlock x:Name="ProgressStatusText"
+                               Text="Preparing..."
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               Foreground="White"
+                               Margin="0,0,0,10"/>
+
+                    <ProgressBar x:Name="DownloadProgressBar"
+                                 Height="12"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Value="0"
+                                 Margin="0,0,0,12"/>
+
+                    <TextBlock x:Name="ProgressDetailsText"
+                               Text=""
+                               FontSize="12"
+                               Foreground="#AAAAAA"
+                               TextWrapping="Wrap"/>
+
+                </StackPanel>
+
+            </StackPanel>
+
+        </ScrollViewer>
+
+        <!-- Buttons -->
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+
+            <Button x:Name="CancelButton"
+                    Content="Cancel"
+                    Width="100"
+                    Height="36"
+                    Margin="0,0,10,0"
+                    Click="CancelButton_Click"/>
+
+            <Button x:Name="InstallButton"
+                    Content="Install"
+                    Width="100"
+                    Height="36"
+                    Click="InstallButton_Click"/>
+
+        </StackPanel>
+
+    </Grid>
+
+</Window>

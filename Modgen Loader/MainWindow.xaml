@@ -1,11 +1,11 @@
-﻿<Window x:Class="Modgen_Loader.MainWindow"
+﻿<Window x:Class="InfinityModgenManager.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:Modgen_Loader"
+        xmlns:local="clr-namespace:InfinityModgenManager"
         mc:Ignorable="d"
-        Title="Infinity Modgen Loader"
+        Title="Infinity Modgen Manager"
         Height="650"
         Width="1100"
         MinHeight="550"
@@ -137,7 +137,7 @@
                                    FontSize="20"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="MODGEN LOADER"
+                        <TextBlock Text="MODGEN MANAGER"
                                    Foreground="{StaticResource SubTextBrush}"
                                    FontSize="10"
                                    FontWeight="SemiBold"/>
@@ -218,11 +218,11 @@
                     </StackPanel>
 
                     <Button Grid.Column="1"
-                            Content="+ Install Mod"
+                            Content="↻ Refresh"
                             Style="{StaticResource ActionButton}"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
-                            Click="InstallMod_Click"/>
+                            Click="RefreshMods_Click"/>
 
                 </Grid>
 
@@ -370,7 +370,7 @@
                                    FontSize="28"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="Configure Infinity Modgen Loader."
+                        <TextBlock Text="Configure Infinity Modgen Manager."
                                    Foreground="{StaticResource SubTextBrush}"
                                    FontSize="13"
                                    Margin="0,5,0,20"/>
@@ -454,7 +454,23 @@
                                            Text="—"
                                            Foreground="{StaticResource TextBrush}"
                                            FontSize="12"
-                                           TextWrapping="Wrap"/>
+                                           TextWrapping="Wrap"
+                                           Margin="0,3,0,15"/>
+
+                                <Button Content="Test Steam Omens"
+                                        Width="160"
+                                        Height="34"
+                                        HorizontalAlignment="Left"
+                                        Style="{StaticResource ActionButton}"
+                                        Click="TestSteamOmens_Click"/>
+
+                                <Button Content="Fix Runtime DLLs"
+                                        Width="160"
+                                        Height="34"
+                                        HorizontalAlignment="Left"
+                                        Style="{StaticResource ActionButton}"
+                                        Margin="0,10,0,0"
+                                        Click="FixRuntimeDlls_Click"/>
 
                             </StackPanel>
 
@@ -513,7 +529,7 @@
                                            FontSize="17"
                                            FontWeight="Bold"/>
 
-                                <TextBlock Text="Remove the selected game from Infinity Modgen Loader. This does not uninstall or delete the game."
+                                <TextBlock Text="Remove the selected game from Infinity Modgen Manager. This does not uninstall or delete the game."
                                            Foreground="{StaticResource SubTextBrush}"
                                            FontSize="12"
                                            TextWrapping="Wrap"
